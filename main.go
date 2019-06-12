@@ -2,14 +2,16 @@ package main
 
 import (
 	"fmt"
+	"go/token"
 	"io/ioutil"
 	"log"
 	"os"
 	"reflect"
+	"strings"
 
-	"github.com/hashicorp/hcl/hcl/ast"
-
+	"github.com/fatih/color"
 	"github.com/hashicorp/hcl"
+	"github.com/hashicorp/hcl/hcl/ast"
 	"github.com/micro/cli"
 )
 
@@ -58,12 +60,49 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Print(reflect.TypeOf(parsedThing.Node))
+	fmt.Printf("%+v\n\n", parsedThing)
+	fmt.Println(" ------------------------ ")
+	fmt.Println("|  Checking Comments... | ")
+	fmt.Println(" ------------------------ ")
+	for _, cGroup := range parsedThing.Comments {
+		for _, cGroupComment := range cGroup.List {
+			if strings.ToLower(cGroupComment.Text) == "# hello sentinel" {
+				color.Green("+ Howdy little terraform script :)")
+			}
+		}
+	}
+	fmt.Print("\u2714 Check complete\n\n")
+
 	switch n := parsedThing.Node.(type) {
 	case *ast.ObjectList:
-		for i, item := range n.Items {
-			fmt.Print(reflect.TypeOf(n.Items[i]))
-			fmt.Print(reflect.TypeOf(item))
+		for _, item := range n.Items {
+			fmt.Println(reflect.TypeOf(item.Val))
+			for _, k := range item.Keys {
+				fmt.Printf("%+v\n", k)
+				if k.Token.Type.String() == token.IDENT.String() && k.Token.Text == "locals" {
+					fmt.Println("FOUND LOCAL VARIABLES DECL")
+					checkLocalVariables(item)
+				}
+			}
+			switch x := item.Val.(type) {
+			case *ast.ObjectType:
+				for _, oItem := range x.List.Items {
+					for _, oItemKey := range oItem.Keys {
+						fmt.Printf("%+v\n", oItemKey)
+					}
+				}
+			}
 		}
+	default:
+		fmt.Printf("unknown type: %T\n", n)
+	}
+}
+
+func checkLocalVariables(objectItem *ast.ObjectItem) {
+	fmt.Println(" ------------------------------- ")
+	fmt.Println("|  Checking Local Variables... | ")
+	fmt.Println(" ------------------------------- ")
+	for _, key := range objectItem.Keys {
+		fmt.Println(key.Token.String())
 	}
 }
